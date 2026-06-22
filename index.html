@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vibration Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+        canvas { background: white; width: 100%; height: 200px; margin-bottom: 20px; }
+        button { padding: 15px 30px; font-size: 18px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Vibration Sensor</h1>
+    <button id="startBtn">Start Measurement</button>
+    <button id="stopBtn" disabled>Stop</button>
+    
+    <h3>Waveform (Time Domain)</h3>
+    <canvas id="waveCanvas"></canvas>
+    
+    <h3>Frequency Spectrum</h3>
+    <canvas id="chartCanvas"></canvas>
+
+    <script>
+        let data = [];
+        let isMeasuring = false;
+        const ctx = document.getElementById('chartCanvas').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Amplitude (Hz)', data: [] }] },
+            options: { responsive: true }
+        });
+
+        async function requestPermission() {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                const response = await DeviceMotionEvent.requestPermission();
+                return response === 'granted';
+            }
+            return true;
+        }
+
+        document.getElementById('startBtn').onclick = async () => {
+            if (await requestPermission()) {
+                isMeasuring = true;
+                data = [];
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                window.addEventListener('devicemotion', (event) => {
+                    if (!isMeasuring) return;
+                    // Using accelerationIncludingGravity to capture vibrations
+                    const acc = event.accelerationIncludingGravity;
+                    const magnitude = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+                    data.push(magnitude);
+                });
+            }
+        };
+
+        document.getElementById('stopBtn').onclick = () => {
+            isMeasuring = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('startBtn').disabled = false;
+            analyzeData();
+        };
+
+        function analyzeData() {
+            // Simplified FFT placeholder: In a production app, use an FFT library 
+            // like 'fft.js' to process the 'data' array and update 'chart'
+            alert("Data captured: " + data.length + " samples. Integrate an FFT library to plot spectrum.");
+        }
+    </script>
+</body>
+</html>
