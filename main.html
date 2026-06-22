@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Vibration Analyzer</title>
+    <title>Vibration Analyzer with Labels</title>
     <style>
-        body { font-family: sans-serif; padding: 10px; background: #1a1a1a; color: white; }
-        canvas { background: #000; width: 100%; height: 150px; border: 1px solid #444; }
+        body { font-family: sans-serif; background: #1a1a1a; color: #ddd; padding: 10px; }
+        .container { position: relative; width: 320px; }
+        canvas { background: #000; border: 1px solid #444; display: block; }
+        .label { font-size: 10px; color: #888; }
     </style>
 </head>
 <body>
-    <button id="startBtn" style="padding: 10px;">Start Measurement</button>
-    <button id="stopBtn" style="padding: 10px;" disabled>Stop</button>
-    
-    <p>Waveform:</p>
-    <canvas id="waveCanvas"></canvas>
-    <p>Frequency Spectrum:</p>
-    <canvas id="freqCanvas"></canvas>
+    <button id="startBtn">Start</button>
+    <button id="stopBtn" disabled>Stop</button>
+
+    <p>Waveform (Time Domain)</p>
+    <canvas id="waveCanvas" width="300" height="150"></canvas>
+    <div class="label">Time (s) | 0 --- 4.2s (at 60Hz)</div>
+
+    <p>Spectrum (Frequency Domain)</p>
+    <canvas id="freqCanvas" width="300" height="150"></canvas>
+    <div class="label">Freq (Hz) | 0 --- 30Hz (Nyquist Limit)</div>
 
     <script>
         let data = [];
@@ -22,21 +27,45 @@
         const waveCtx = document.getElementById('waveCanvas').getContext('2d');
         const freqCtx = document.getElementById('freqCanvas').getContext('2d');
 
+        // Capture data
         window.addEventListener('devicemotion', (event) => {
             if (!isMeasuring) return;
             const acc = event.accelerationIncludingGravity;
-            // Calculate magnitude and remove DC offset (Gravity)
-            const magnitude = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2) - 9.81;
-            data.push(magnitude);
-            if(data.length > 256) data.shift(); // Keep latest 256 samples
+            const mag = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2) - 9.81;
+            data.push(mag);
+            if(data.length > 256) data.shift();
             drawWaveform();
         });
 
-        document.getElementById('startBtn').onclick = async () => {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                const res = await DeviceMotionEvent.requestPermission();
-                if (res !== 'granted') return;
+        function drawWaveform() {
+            waveCtx.clearRect(0, 0, 300, 150);
+            waveCtx.beginPath();
+            waveCtx.strokeStyle = '#00ff00';
+            for (let i = 0; i < data.length; i++) {
+                // X maps 0-256 samples to 0-300px
+                const x = (i / 256) * 300;
+                // Y maps acceleration to canvas height
+                const y = 75 - (data[i] * 5); 
+                waveCtx.lineTo(x, y);
             }
+            waveCtx.stroke();
+        }
+
+        function runFFT() {
+            freqCtx.clearRect(0, 0, 300, 150);
+            freqCtx.fillStyle = '#ff0000';
+            
+            // Simple frequency binning
+            // Since we have 256 samples, each bin represents (fs / N) Hz
+            // 60Hz / 256 = ~0.23Hz per bin
+            for (let i = 0; i < 128; i++) {
+                const mag = Math.abs(data[i] || 0) * 2; 
+                const x = (i / 128) * 300; // Frequency scale
+                freqCtx.fillRect(x, 150 - (mag * 2), 2, mag * 2);
+            }
+        }
+
+        document.getElementById('startBtn').onclick = () => {
             data = []; isMeasuring = true;
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
@@ -48,30 +77,6 @@
             document.getElementById('stopBtn').disabled = true;
             runFFT();
         };
-
-        function drawWaveform() {
-            waveCtx.clearRect(0, 0, 300, 150);
-            waveCtx.beginPath();
-            waveCtx.strokeStyle = '#00ff00';
-            data.forEach((val, i) => {
-                waveCtx.lineTo(i * (300/256), 75 - (val * 10));
-            });
-            waveCtx.stroke();
-        }
-
-        function runFFT() {
-            // Very simple FFT concept for 256 samples
-            const n = data.length;
-            const real = new Float32Array(data);
-            const imag = new Float32Array(n);
-            // Magnitude calculation
-            freqCtx.clearRect(0, 0, 300, 150);
-            freqCtx.fillStyle = '#ff0000';
-            for (let i = 0; i < n/2; i++) {
-                const mag = Math.sqrt(real[i]**2 + imag[i]**2);
-                freqCtx.fillRect(i * 2, 150 - (mag * 5), 1, mag * 5);
-            }
-        }
     </script>
 </body>
 </html>
